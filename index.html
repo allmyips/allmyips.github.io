@@ -1,0 +1,97 @@
+<!doctype html>
+<html><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>AllMyIPs.com</title>
+    <style>
+body{
+  text-align: center;
+}
+#byline {
+  font-style: italic;
+}
+thead{
+  font-weight: bold;
+}
+table {
+  margin-left: auto;
+  margin-right: auto;
+  border: solid 1px;
+}
+table tbody tr td {
+  border: solid 1px;
+}
+    </style>
+</head><body>
+<table>
+  <thead><tr><td>IP Address</td><td>Internal/External</td><tr></thead>
+  <tbody id="results"></tbody>
+</table>
+<p>Heavily inspired by <a href="https://web.archive.org/web/20141001093423/https://hacking.ventures/local-ip-discovery-with-html5-webrtc-security-and-privacy-risk/">this</a> and <a href="http://net.ipcalf.com/">this</a>.</p>
+<p id="byline">`<a href="https://github.com/whatismyinternalip/whatismyinternalip.github.io">Source</a>. Made by <a href="https://twitter.com/bengl">@bengl</a></p>
+
+
+<script>
+(function() {
+  var RTCPeerConnection = window.RTCPeerConnection ||
+    window.webkitRTCPeerConnection ||
+    window.mozRTCPeerConnection;
+
+  if (!RTCPeerConnection) {
+    document.body.innerHTML = 'Not available. Try this:<br/><code>$ ifconfig | grep "inet " | cut -d " " -f2 | grep -v "^127.0"</code>';
+    return;
+  }
+
+  var resultsList = document.getElementById('results');
+  var addrs = [];
+  var externalAddrs = [];
+  const typetitle = {
+    Internal: 'This IP is only visible to your local network.',
+    External: 'This IP is visible to the world.'
+  };
+
+  var rtc = new RTCPeerConnection({
+    "iceServers": [{"urls":["stun:stun.l.google.com:19302"]}],
+    "iceTransportPolicy":"all",
+    "iceCandidatePoolSize":"0"
+  });
+
+  // browsers need a channel/stream to proceed
+  rtc.createDataChannel('', {reliable:false});
+
+  rtc.onicecandidate = function checkSDP(evt) {
+    if (!evt.candidate) return;
+    var match = evt.candidate.candidate.match(/\d+\.\d+\.\d+\.\d+/);
+    if (!match ||
+        ~addrs.indexOf(match[0]) ||
+        ~externalAddrs.indexOf(match[0]) ||
+        match[0] === '127.0.0.1')
+      return;
+    (isInternal(match[0]) ? addrs : externalAddrs).push(match[0]);
+    renderResults();
+  };
+
+  rtc.createOffer(rtc.setLocalDescription.bind(rtc), console.warn);
+
+  function isInternal(ip){
+    var s = ip.split('.')[1];
+    return (ip.match(/^10\./) || ip.match(/^192\.168\./) ||
+      (ip.match(/^172\.(\d+)\./) && s >= 16 && s <= 31));
+  }
+
+  function renderLine(ip, type) {
+    resultsList.innerHTML += `<tr><td>${ip}</td><td title="${typetitle[type]}">${type}</td></tr>`;
+  }
+
+  function renderResults() {
+    var i;
+    resultsList.innerHTML = '';
+    for (i = 0; i < addrs.length; i ++)
+      renderLine(addrs[i], 'Internal');
+    for (i = 0; i < externalAddrs.length; i ++)
+      renderLine(externalAddrs[i], 'External');
+  }
+})();
+</script>
+
+</body></html>
